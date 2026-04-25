@@ -751,7 +751,7 @@ class ExecutionAgent():
     
     def sell_remaining_position(self, lob, time):
         assert self.agent_id, 'agent id is not set' 
-        assert self.volume > 0, 'volume is 0'
+        if self.volume <= 0: return []  # was: assert self.volume > 0
         # assert lob.order_map_by_agent[self.agent_id], 'agent has no orders in the book'
         # assert self.agent_id in lob.order_map_by_agent, 'agent has no orders in the book'
         order_list = []
@@ -1666,6 +1666,57 @@ class RLAgent(ExecutionAgent):
     def initial_event(self):
         return (self.start_time, self.priority, self.agent_id)
                 
+
+
+class BilateralTopAgent(ExecutionAgent):
+    """
+    Bilateral market-making baseline.
+    Quotes at best bid AND best ask continuously.
+    Inherits from ExecutionAgent — fully compatible with market_gym.
+    """
+    def __init__(self, volume, start_time, terminal_time, time_delta, priority=0):
+        super().__init__(volume, 'top_agent', priority)
+        assert volume > 0 and volume % 2 == 0
+        self.start_time = start_time
+        self.terminal_time = terminal_time
+        self.time_delta = time_delta
+        self.reference_bid_price = None
+
+    def generate_order(self, lob, time):
+        if self.reference_bid_price is None:
+            self.reference_bid_price = lob.get_best_price('bid')
+        if time == self.terminal_time:
+            if self.volume <= 0:
+                return []
+            return self.sell_remaining_position(lob, time)
+        best_bid = lob.get_best_price('bid')
+        best_ask = lob.get_best_price('ask')
+        order_list = []
+        for order_id in list(lob.order_map_by_agent.get(self.agent_id, set())):
+            o = lob.order_map[order_id]
+            if (o.side == 'bid' and o.price != best_bid) or (o.side == 'ask' and o.price != best_ask):
+                order_list.append(Cancellation(agent_id=self.agent_id, order_id=order_id, time=time))
+        target = self.initial_volume // 2
+        vol_bid = sum(lob.order_map[o].volume for o in lob.order_map_by_agent.get(self.agent_id, set())
+                      if lob.order_map[o].side == 'bid' and lob.order_map[o].price == best_bid)
+        vol_ask = sum(lob.order_map[o].volume for o in lob.order_map_by_agent.get(self.agent_id, set())
+                      if lob.order_map[o].side == 'ask' and lob.order_map[o].price == best_ask)
+        if vol_bid < target:
+            order_list.append(LimitOrder(agent_id=self.agent_id, side='bid', price=best_bid, volume=target-vol_bid, time=time))
+        if vol_ask < target:
+            order_list.append(LimitOrder(agent_id=self.agent_id, side='ask', price=best_ask, volume=target-vol_ask, time=time))
+        return order_list
+
+    def get_observation(self, time, lob): return None
+
+    def new_event(self, time, event):
+        assert event == self.agent_id
+        if time >= self.terminal_time: return None
+        return (min(time + self.time_delta, self.terminal_time), self.priority, self.agent_id)
+
+    def initial_event(self):
+        return (self.start_time, self.priority, self.agent_id)
+
 class StrategicAgent():
     """
     - just sends limit and market orders at some frequency

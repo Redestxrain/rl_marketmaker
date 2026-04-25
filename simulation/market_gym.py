@@ -2,7 +2,7 @@ import os, sys
 current_path = os.path.dirname(os.path.realpath(__file__))
 parent_dir = os.path.dirname(current_path)
 sys.path.append(parent_dir)
-from simulation.agents import NoiseAgent, LinearSubmitLeaveAgent, StrategicAgent, SubmitAndLeaveAgent, MarketAgent, InitialAgent, ObservationAgent, RLAgent
+from simulation.agents import NoiseAgent, LinearSubmitLeaveAgent, StrategicAgent, SubmitAndLeaveAgent, MarketAgent, InitialAgent, ObservationAgent, RLAgent, BilateralTopAgent
 from limit_order_book import LimitOrderBook, Cancellation, MarketOrder
 from config import noise_agent_config, strategic_agent_config, sl_agent_config, linear_sl_agent_config, market_agent_config, initial_agent_config, observation_agent_config, rl_agent_config, fee_config
 import numpy as np
@@ -52,7 +52,7 @@ class Market(gym.Env):
         seed = config['seed']
 
         assert config['market_env'] in ['noise', 'flow', 'strategic']
-        assert config['execution_agent'] in ['market_agent', 'sl_agent', 'linear_sl_agent', 'rl_agent']
+        assert config['execution_agent'] in ['market_agent', 'sl_agent', 'linear_sl_agent', 'rl_agent', 'top_agent']
 
         self.agents = {}
 
@@ -156,6 +156,13 @@ class Market(gym.Env):
             linear_sl_agent_config['terminal_time'] = config['terminal_time']
             linear_sl_agent_config['time_delta'] = config['time_delta']
             agent = LinearSubmitLeaveAgent(**linear_sl_agent_config)
+        elif config['execution_agent'] == 'top_agent':
+            agent = BilateralTopAgent(
+                volume=config['volume'],
+                start_time=0,
+                terminal_time=config['terminal_time'],
+                time_delta=config['time_delta'],
+            )
         else:
             # rl_agent_config['start_time'] = 0
             rl_agent_config['terminal_time'] = config['terminal_time']

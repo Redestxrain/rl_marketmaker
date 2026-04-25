@@ -65,17 +65,20 @@ def run_full_benchmark(market_env="noise", n_episodes=200, model_path=None):
     print(f"{chr(9472)*60}")
     results = {}
 
-    print("\n[1/3] SubmitAndLeave...")
+    print("\n[1/4] BilateralTop (best bid+ask both sides)...")
+    results["BilateralTop"]      = rollout_agent("top_agent",       config, n_episodes)
+
+    print("\n[2/4] SubmitAndLeave (sell-only baseline)...")
     results["SubmitAndLeave"]    = rollout_agent("sl_agent",        config, n_episodes)
 
-    print("\n[2/3] LinearSubmitLeave...")
+    print("\n[3/4] LinearSubmitLeave (sell-only baseline)...")
     results["LinearSubmitLeave"] = rollout_agent("linear_sl_agent", config, n_episodes)
 
     if model_path and os.path.exists(model_path):
-        print("\n[3/3] PPO Bilateral RL agent...")
+        print("\n[4/4] PPO Bilateral RL agent...")
         results["PPO_Bilateral"] = rollout_rl_agent(model_path, config, n_episodes)
     else:
-        print("\n[3/3] Skipping RL agent (no model path provided)")
+        print("\n[4/4] Skipping RL agent (no model path provided)")
 
     all_metrics = compare_agents(results)
     os.makedirs("benchmarks/results", exist_ok=True)
